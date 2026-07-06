@@ -254,7 +254,7 @@
     <button onclick="concludeWeek()">Concluir semana</button>
   </div>
   <div class="savednote" id="savednote">Anota&ccedil;&otilde;es salvas automaticamente neste dispositivo.</div>
-  <div class="brand">Foco &middot; Disciplina &middot; Evolu&ccedil;&atilde;o &middot; v6</div>
+  <div class="brand">Foco &middot; Disciplina &middot; Evolu&ccedil;&atilde;o &middot; v7</div>
 </div>
 
 <div class="ov" id="ov"><div class="ovcard" id="ovcard"></div></div>
@@ -740,13 +740,36 @@ function repsFor(mus,goal){
   if(goal==='resistencia') return iso?R('3×15','3×18','3×20'):R('3×12','3×15','3×12');
   return iso?R('3×12','3×15','3×12'):R('4×8','4×6','4×8');
 }
+function _shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function _eqCat(i){var p=String(i).split('_')[0];return ({bb:'barra',db:'halter',cbl:'cabo',bw:'corpo'})[p]||'maquina';}
+function _isComp(o){return /press|squat|agachamento|remada|\brow\b|puxada|pulldown|terra|deadlift|afundo|lunge|búlgaro|bulgar|\bdip\b|barra fixa|chin|hip thrust|elevação pélvica|leg press|desenvolvimento|good morning|pullover/i.test(o.n);}
+/* escolhe n exercícios que se completam: 1 composto primeiro, depois variando equipamento/ângulo */
+function _pickN(mus,n,usedG){
+  var pool=(A[mus]||[]).slice();
+  var avail=pool.filter(function(o){return !usedG.has(o.i);});
+  if(avail.length<n) avail=pool.slice();
+  var comps=_shuffle(avail.filter(_isComp));
+  var isos=_shuffle(avail.filter(function(o){return !_isComp(o);}));
+  var chosen=[];
+  if(comps.length) chosen.push(comps.shift());
+  var rest=_shuffle(isos.concat(comps));
+  while(chosen.length<n && rest.length){
+    var lastCat=chosen.length?_eqCat(chosen[chosen.length-1].i):null;
+    var idx=rest.findIndex(function(o){return _eqCat(o.i)!==lastCat;});
+    if(idx<0) idx=0;
+    var o=rest.splice(idx,1)[0];
+    if(!chosen.some(function(c){return c.i===o.i;})) chosen.push(o);
+  }
+  chosen.forEach(function(o){usedG.add(o.i);});
+  return chosen;
+}
 function genDraft(){
-  const T=TEMPLATES[builderCfg.split], used=new Set();
-  function pick(mus){const pool=A[mus]||[]; let c=pool.find(o=>!used.has(o.i)); if(!c)c=pool[0]; if(c)used.add(c.i); return c;}
-  const days=T.days.map((d,di)=>{
-    const ex=[], musset=[];
+  var T=TEMPLATES[builderCfg.split], usedG=new Set();
+  var days=T.days.map(function(d,di){
+    var ex=[], musset=[];
     d.plan.forEach(function(pl){var mus=pl[0],n=pl[1]; if(MUS_LABEL[mus]&&musset.indexOf(mus)<0)musset.push(mus);
-      for(let k=0;k<n;k++){const o=pick(mus); if(o)ex.push({n:o.n,i:o.i,mus:mus,note:o.note,reps:repsFor(mus,builderCfg.goal)});}});
+      _pickN(mus,n,usedG).forEach(function(o){ex.push({n:o.n,i:o.i,mus:mus,note:o.note,reps:repsFor(mus,builderCfg.goal)});});
+    });
     return {key:'d'+(di+1),title:d.t,day:d.d,musc:musset.map(function(m){return MUS_LABEL[m].split(' ')[0];}).join(' · '),ex:ex};
   });
   draft={days:days};
@@ -768,8 +791,8 @@ function renderBuilderView(){
   let h='<div class="dayhead"><h2>Novo protocolo</h2><div class="musc">Escolha divisão e objetivo — o gerador monta, você ajusta</div></div>';
   h+='<div class="sect"><h4>1 · Divisão</h4><div class="chips">'+splitBtns+'</div>'
     +'<h4 style="margin-top:14px">2 · Objetivo</h4><div class="chips">'+goalBtns+'</div>'
-    +'<button class="genbtn" onclick="doGenerate()">⚙ Gerar treinos</button>'
-    +'<div class="od" style="margin-top:8px">Regras: cada músculo 1–2× por semana, compostos antes de isoladores, faixas de reps por fase (Fundação→Pico) e sobrecarga progressiva.</div></div>';
+    +'<button class="genbtn" onclick="doGenerate()">🎲 Gerar treinos'+(draft?' (nova combinação)':'')+'</button>'
+    +'<div class="od" style="margin-top:8px">Cada clique monta uma combinação <b>diferente</b> da biblioteca (91 exercícios): composto primeiro, depois isoladores variando equipamento e ângulo (máquina · barra · halteres · cabo). Volume e frequência seguem diretrizes atuais de hipertrofia; reps por fase (Fundação→Pico) e sobrecarga progressiva.</div></div>';
   if(draft){
     draft.days.forEach(function(dy,di){
       h+='<div class="sect"><h4 style="display:flex;justify-content:space-between">'+dy.title+' <small style="font-weight:600;color:var(--steel)">'+dy.ex.length+' ex.</small></h4>';
@@ -866,7 +889,7 @@ function toggleTheme(){
 /* ---------- menu de configurações ---------- */
 function openSettings(){
   const dark=document.documentElement.classList.contains('dark');
-  let h=`<h3>Configurações</h3><div class="sub">Project Titan · versão 6 · preferências e backup.</div>`;
+  let h=`<h3>Configurações</h3><div class="sub">Project Titan · versão 7 · preferências e backup.</div>`;
   h+=`<div class="setrow"><div><div class="on">Modo escuro</div><div class="od">Tema escuro para treinar com pouca luz</div></div>
       <button class="switch ${dark?'on':''}" onclick="toggleTheme()"><span></span></button></div>`;
   h+=`<button class="setbtn" onclick="exportBackup()">⤓  Exportar backup (.json)</button>`;
