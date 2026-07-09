@@ -159,6 +159,9 @@
   .switch.on{background:var(--ok);} .switch.on span{left:23px;}
   .setbtn{width:100%;text-align:left;font:inherit;font-size:14px;font-weight:700;padding:14px;border-radius:14px;border:1px solid rgba(255,255,255,.7);background:rgba(255,255,255,.6);color:var(--ink);cursor:pointer;margin-bottom:10px;box-shadow:0 3px 12px rgba(20,22,26,.05);}
   .setbtn:active{transform:scale(.99);}
+  .clin{width:100%;font:inherit;font-size:13px;padding:11px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.7);color:var(--ink);margin-bottom:8px;}
+  .clin:focus{outline:none;border-color:var(--brass);}
+  .dark .clin{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.14);color:#EDEFF2;}
 
   /* ---------- modo escuro ---------- */
   .dark{--ink:#EDEFF2;--steel:#9AA1AC;--line:rgba(255,255,255,.14);background:#0B0C0F;}
@@ -254,7 +257,7 @@
     <button onclick="concludeWeek()">Concluir semana</button>
   </div>
   <div class="savednote" id="savednote">Anota&ccedil;&otilde;es salvas automaticamente neste dispositivo.</div>
-  <div class="brand">Foco &middot; Disciplina &middot; Evolu&ccedil;&atilde;o &middot; v7</div>
+  <div class="brand">Foco &middot; Disciplina &middot; Evolu&ccedil;&atilde;o &middot; v9</div>
 </div>
 
 <div class="ov" id="ov"><div class="ovcard" id="ovcard"></div></div>
@@ -558,7 +561,22 @@ let log=load(KEY), picks=load(PKEY);
 (function(){try{const p=JSON.parse(localStorage.getItem(PROGKEY)); if(p&&p.workouts&&p.days&&p.days.length){WORKOUTS=p.workouts; DAYS=p.days; if(DAYS.indexOf(state.day)<0)state.day=DAYS[0];}}catch(e){}})();
 
 function load(k){try{return JSON.parse(localStorage.getItem(k))||{};}catch(e){return{};}}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(log));localStorage.setItem(PKEY,JSON.stringify(picks));}catch(e){document.getElementById('savednote').textContent='Não foi possível salvar — abra no Safari/Chrome do dispositivo.';}}
+function save(){
+  try{
+    localStorage.setItem(KEY,JSON.stringify(log));
+    localStorage.setItem(PKEY,JSON.stringify(picks));
+    var n=document.getElementById('savednote');
+    if(n){ n.style.color=''; var t=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); n.textContent='✓ Salvo neste dispositivo · '+t; }
+    setLocalTs(Date.now()); cloudAutoPush();
+  }catch(e){
+    var n=document.getElementById('savednote');
+    if(n){ n.style.color='#D9541F'; n.textContent='⚠ Não foi possível salvar aqui. Exporte um backup em ⚙ Configurações e evite a Navegação Privada.'; }
+  }
+}
+/* reforço de persistência (iOS pode limpar o localStorage): pede armazenamento persistente e grava ao sair */
+try{ if(navigator.storage&&navigator.storage.persist){ navigator.storage.persist(); } }catch(e){}
+document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='hidden')save(); });
+window.addEventListener('pagehide',save);
 function phaseOf(w){return w<=4?1:(w<=8?2:3);}
 function isDeload(w){return w===12;}
 function setsOf(reps){return parseInt(reps.split('×')[0])||3;}
@@ -834,13 +852,14 @@ function saveProgram(){
   WORKOUTS=wk; DAYS=days;
   try{localStorage.setItem(PROGKEY,JSON.stringify({workouts:wk,days:days}));}catch(e){}
   buildTabs(); state.day=DAYS[0]; state.week=1; state.view='list'; draft=null; render();
+  touch();
   alert('Protocolo salvo! Seus registros anteriores continuam guardados no aparelho.');
 }
 function restoreDefault(){
   if(!confirm('Restaurar o programa padrão (PPL + Upper)? Isso não apaga seus registros de carga.'))return;
   try{localStorage.removeItem(PROGKEY);}catch(e){}
   WORKOUTS=DEFAULT_WORKOUTS; DAYS=DEFAULT_DAYS.slice();
-  buildTabs(); state.day=DAYS[0]; state.view='list'; draft=null; render();
+  buildTabs(); state.day=DAYS[0]; state.view='list'; draft=null; render(); touch();
 }
 
 function chartSVG(name){
@@ -883,13 +902,14 @@ function toggleTheme(){
   theme=(theme==='dark'?'light':'dark');
   applyTheme(theme);
   try{localStorage.setItem(TKEY,theme);}catch(e){}
+  touch();
   if(document.getElementById('ov2').classList.contains('show'))openSettings();
 }
 
 /* ---------- menu de configurações ---------- */
 function openSettings(){
   const dark=document.documentElement.classList.contains('dark');
-  let h=`<h3>Configurações</h3><div class="sub">Project Titan · versão 7 · preferências e backup.</div>`;
+  let h=`<h3>Configurações</h3><div class="sub">Project Titan · versão 9 · preferências e backup.</div>`;
   h+=`<div class="setrow"><div><div class="on">Modo escuro</div><div class="od">Tema escuro para treinar com pouca luz</div></div>
       <button class="switch ${dark?'on':''}" onclick="toggleTheme()"><span></span></button></div>`;
   h+=`<button class="setbtn" onclick="exportBackup()">⤓  Exportar backup (.json)</button>`;
@@ -898,6 +918,16 @@ function openSettings(){
   h+=`<button class="setbtn" onclick="newProtocol()">🧩  Novo protocolo (montar treinos)</button>`;
   h+=`<button class="setbtn" style="border-color:rgba(217,84,31,.5);color:var(--accent)" onclick="clearAll()">🗑  Limpar tudo (cargas + trocas)</button>`;
   h+=`<div class="od" style="margin:2px 4px 12px">Novo protocolo abre o construtor para montar/gerar novos treinos (não apaga seus dados). Limpar tudo apaga cargas e trocas.</div>`;
+  var cc=cloudCfg();
+  h+=`<div style="height:1px;background:var(--line);margin:6px 0 12px"></div>`;
+  h+=`<div class="on" style="margin:0 2px 3px">☁ Sincronização na nuvem</div>`;
+  h+=`<div class="od" style="margin:0 2px 10px">Salva seus dados online e recupera sozinho — mesmo que o iPhone limpe o app. Também sincroniza entre aparelhos.</div>`;
+  h+=`<input id="cl_url" class="clin" placeholder="Project URL (https://xxxxx.supabase.co)" value="${(cc.url||'').replace(/"/g,'&quot;')}">`;
+  h+=`<input id="cl_key" class="clin" placeholder="anon public key" value="${(cc.key||'').replace(/"/g,'&quot;')}">`;
+  h+=`<input id="cl_code" class="clin" placeholder="Código de sincronização (o mesmo em todos os aparelhos)" value="${(cc.code||'').replace(/"/g,'&quot;')}">`;
+  h+=`<div style="display:flex;gap:8px"><button class="setbtn" style="margin:0;flex:1" onclick="cloudGenCode()">Gerar código</button><button class="setbtn" style="margin:0;flex:1${cc.on?';background:rgba(21,160,90,.15);border-color:var(--ok)':''}" onclick="cloudSave()">${cc.on?'Sincronizando ✓':'Ativar sincronização'}</button></div>`;
+  h+=`<div style="display:flex;gap:8px;margin-top:8px"><button class="setbtn" style="margin:0;flex:1" onclick="cloudDoPush()">↑ Enviar agora</button><button class="setbtn" style="margin:0;flex:1" onclick="cloudDoPull()">↓ Baixar agora</button></div>`;
+  h+=`<div class="od" id="cl_status" style="margin:8px 2px 14px">${cc.on?'Sincronização ativa neste aparelho.':'Preencha URL, chave e código; toque em Ativar.'}</div>`;
   h+=`<button class="ovclose" onclick="closeSettings()">Fechar</button>`;
   document.getElementById('ovcard2').innerHTML=h;
   document.getElementById('ov2').classList.add('show');
@@ -923,8 +953,63 @@ function clearAll(){
   if(!confirm('Limpar TUDO?\n\nApaga registros de carga E trocas de aparelho, voltando o app ao padrão. Não dá para desfazer.\nExporte um backup antes se quiser guardar.'))return;
   log={}; picks={}; state.week=1; state.day='legs'; state.view='list';
   try{localStorage.setItem(KEY,JSON.stringify(log));localStorage.setItem(PKEY,JSON.stringify(picks));}catch(e){}
-  closeSettings(); render(); alert('Tudo limpo. App no padrão.');
+  closeSettings(); render(); touch(); alert('Tudo limpo. App no padrão.');
 }
+
+/* ================= SINCRONIZAÇÃO NA NUVEM (Supabase) ================= */
+const CKEY='titan_cloud_v1', TSKEY='titan_ts';
+function cloudCfg(){ try{return JSON.parse(localStorage.getItem(CKEY))||{};}catch(e){return{};} }
+function cloudSet(c){ try{localStorage.setItem(CKEY,JSON.stringify(c));}catch(e){} }
+function localTs(){ return +(localStorage.getItem(TSKEY)||0); }
+function setLocalTs(t){ try{localStorage.setItem(TSKEY,String(t));}catch(e){} }
+function touch(){ setLocalTs(Date.now()); cloudAutoPush(); }
+function _prog(){ try{return JSON.parse(localStorage.getItem(PROGKEY));}catch(e){return null;} }
+function snapshot(){ return {log:log,picks:picks,program:_prog(),theme:loadTheme(),_ts:localTs()||Date.now()}; }
+function applySnapshot(p){
+  if(!p) return;
+  log=p.log||{}; picks=p.picks||{};
+  try{localStorage.setItem(KEY,JSON.stringify(log));localStorage.setItem(PKEY,JSON.stringify(picks));}catch(e){}
+  if(p.program&&p.program.workouts&&p.program.days&&p.program.days.length){ WORKOUTS=p.program.workouts; DAYS=p.program.days; try{localStorage.setItem(PROGKEY,JSON.stringify(p.program));}catch(e){} }
+  else { try{localStorage.removeItem(PROGKEY);}catch(e){} WORKOUTS=DEFAULT_WORKOUTS; DAYS=DEFAULT_DAYS.slice(); }
+  if(p.theme){ theme=p.theme; applyTheme(theme); try{localStorage.setItem(TKEY,theme);}catch(e){} }
+  setLocalTs(p._ts||Date.now());
+  if(DAYS.indexOf(state.day)<0)state.day=DAYS[0];
+  buildTabs();
+}
+function _cloudHeaders(c){ return {'apikey':c.key,'Authorization':'Bearer '+c.key,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'}; }
+function cloudPush(){
+  var c=cloudCfg(); if(!c.url||!c.key||!c.code) return Promise.reject(new Error('config'));
+  var body=[{code:c.code,payload:snapshot(),updated_at:new Date().toISOString()}];
+  return fetch(c.url.replace(/\/+$/,'')+'/rest/v1/titan_sync',{method:'POST',headers:_cloudHeaders(c),body:JSON.stringify(body)}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return true; });
+}
+function cloudPull(){
+  var c=cloudCfg(); if(!c.url||!c.key||!c.code) return Promise.reject(new Error('config'));
+  return fetch(c.url.replace(/\/+$/,'')+'/rest/v1/titan_sync?code=eq.'+encodeURIComponent(c.code)+'&select=payload',{headers:_cloudHeaders(c)}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(rows){ return (rows&&rows[0])?rows[0].payload:null; });
+}
+var _cloudTimer=null;
+function cloudAutoPush(){ var c=cloudCfg(); if(!c.on||!c.url||!c.key||!c.code) return; clearTimeout(_cloudTimer); _cloudTimer=setTimeout(function(){ cloudPush().catch(function(){}); },1500); }
+function cloudSyncOnOpen(){
+  var c=cloudCfg(); if(!c.on) return;
+  cloudPull().then(function(p){
+    if(p && (p._ts||0)>localTs()){ applySnapshot(p); render(); }
+    else { cloudPush().catch(function(){}); }
+  }).catch(function(){});
+}
+function cloudReadInputs(){ var g=function(id){var e=document.getElementById(id);return e?String(e.value).trim():'';}; var c=cloudCfg(); c.url=g('cl_url'); c.key=g('cl_key'); c.code=g('cl_code'); cloudSet(c); return c; }
+function cloudGenCode(){ var s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',x=''; for(var i=0;i<20;i++)x+=s.charAt(Math.floor(Math.random()*s.length)); var e=document.getElementById('cl_code'); if(e)e.value=x; }
+function _clStat(m){ var e=document.getElementById('cl_status'); if(e)e.textContent=m; }
+function cloudSave(){
+  var c=cloudReadInputs();
+  if(!c.url||!c.key||!c.code){ _clStat('Preencha URL, chave e código.'); return; }
+  c.on=true; cloudSet(c); _clStat('Conectando…');
+  cloudPull().then(function(p){
+    if(p && (p._ts||0)>localTs()){ applySnapshot(p); render(); openSettings(); _clStat('Sincronizado — dados da nuvem baixados. ✓'); }
+    else { if(!localTs())setLocalTs(Date.now()); return cloudPush().then(function(){ openSettings(); _clStat('Sincronizado — seus dados enviados. ✓'); }); }
+  }).catch(function(e){ _clStat('Erro ao conectar. Confira URL/chave e a tabela no Supabase. ('+e.message+')'); });
+}
+function cloudDoPush(){ var c=cloudReadInputs(); if(!c.url||!c.key||!c.code){_clStat('Preencha URL, chave e código.');return;} if(!localTs())setLocalTs(Date.now()); _clStat('Enviando…'); cloudPush().then(function(){_clStat('Enviado para a nuvem. ✓');}).catch(function(e){_clStat('Erro: '+e.message);}); }
+function cloudDoPull(){ var c=cloudReadInputs(); if(!c.url||!c.key||!c.code){_clStat('Preencha URL, chave e código.');return;} _clStat('Baixando…'); cloudPull().then(function(p){ if(p){applySnapshot(p);render();openSettings();_clStat('Baixado da nuvem. ✓');} else _clStat('Nada na nuvem ainda para este código.'); }).catch(function(e){_clStat('Erro: '+e.message);}); }
+
 function importBackup(file){
   const r=new FileReader();
   r.onload=function(){
@@ -935,6 +1020,7 @@ function importBackup(file){
     try{localStorage.setItem(KEY,JSON.stringify(log));localStorage.setItem(PKEY,JSON.stringify(picks));}catch(e){}
     if(d.theme){theme=d.theme;applyTheme(theme);try{localStorage.setItem(TKEY,theme);}catch(e){}}
     closeSettings(); state.view='list'; render();
+    touch();
     alert('Backup importado com sucesso.');
   };
   r.readAsText(file);
@@ -967,6 +1053,7 @@ function buildPrint(){
 function printPlan(){ buildPrint(); setTimeout(()=>window.print(),60); }
 
 render();
+cloudSyncOnOpen();
 </script>
 </body>
 </html>
