@@ -274,7 +274,7 @@
 
   @media print{
     html,body{background:#fff!important;}
-    .wrap,.ov{display:none!important;}
+    .wrap,.ov,.tabbar{display:none!important;}
     #printArea{display:block!important;}
     @page{size:A4 landscape;margin:8mm;}
   }
@@ -300,7 +300,7 @@
     <button onclick="concludeWeek()">Concluir semana</button>
   </div>
   <div class="savednote" id="savednote">Anota&ccedil;&otilde;es salvas automaticamente neste dispositivo.</div>
-  <div class="brand">Foco &middot; Disciplina &middot; Evolu&ccedil;&atilde;o &middot; v12</div>
+  <div class="brand">Foco &middot; Disciplina &middot; Evolu&ccedil;&atilde;o &middot; v13</div>
 </div>
 
 <nav class="tabbar" id="tabbar">
@@ -1014,7 +1014,7 @@ function toggleTheme(){
 /* ---------- menu de configurações ---------- */
 function openSettings(){
   const dark=document.documentElement.classList.contains('dark');
-  let h=`<h3>Configurações</h3><div class="sub">Project Titan · versão 12 · preferências e backup.</div>`;
+  let h=`<h3>Configurações</h3><div class="sub">Project Titan · versão 13 · preferências e backup.</div>`;
   h+=`<div class="setrow"><div><div class="on">Modo escuro</div><div class="od">Tema escuro para treinar com pouca luz</div></div>
       <button class="switch ${dark?'on':''}" onclick="toggleTheme()"><span></span></button></div>`;
   h+=`<button class="setbtn" onclick="exportBackup()">⤓  Exportar backup (.json)</button>`;
@@ -1130,7 +1130,7 @@ function buildPrint(){
    +`<tr><th class="ex" rowspan="2">Exercício</th><th colspan="12">Carga Máx. Semana (kg)</th></tr><tr>`;
   for(let w=1;w<=12;w++) h+=`<th>S${w}</th>`;
   h+=`</tr></thead><tbody>`;
-  ['legs','push','pull','upper'].forEach(d=>{
+  DAYS.filter(function(d){return d!=='cardio'&&d!=='extras';}).forEach(d=>{
     const wk=WORKOUTS[d];
     h+=`<tr class="pr-dayrow"><td colspan="13">${wk.title} — ${wk.day} · ${wk.musc}</td></tr>`;
     wk.ex.forEach((_,idx)=>{
