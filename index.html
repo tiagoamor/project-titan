@@ -257,7 +257,7 @@
     <button onclick="concludeWeek()">Concluir semana</button>
   </div>
   <div class="savednote" id="savednote">Anota&ccedil;&otilde;es salvas automaticamente neste dispositivo.</div>
-  <div class="brand">Foco &middot; Disciplina &middot; Evolu&ccedil;&atilde;o &middot; v9</div>
+  <div class="brand">Foco &middot; Disciplina &middot; Evolu&ccedil;&atilde;o &middot; v10</div>
 </div>
 
 <div class="ov" id="ov"><div class="ovcard" id="ovcard"></div></div>
@@ -909,7 +909,7 @@ function toggleTheme(){
 /* ---------- menu de configurações ---------- */
 function openSettings(){
   const dark=document.documentElement.classList.contains('dark');
-  let h=`<h3>Configurações</h3><div class="sub">Project Titan · versão 9 · preferências e backup.</div>`;
+  let h=`<h3>Configurações</h3><div class="sub">Project Titan · versão 10 · preferências e backup.</div>`;
   h+=`<div class="setrow"><div><div class="on">Modo escuro</div><div class="od">Tema escuro para treinar com pouca luz</div></div>
       <button class="switch ${dark?'on':''}" onclick="toggleTheme()"><span></span></button></div>`;
   h+=`<button class="setbtn" onclick="exportBackup()">⤓  Exportar backup (.json)</button>`;
@@ -921,13 +921,12 @@ function openSettings(){
   var cc=cloudCfg();
   h+=`<div style="height:1px;background:var(--line);margin:6px 0 12px"></div>`;
   h+=`<div class="on" style="margin:0 2px 3px">☁ Sincronização na nuvem</div>`;
-  h+=`<div class="od" style="margin:0 2px 10px">Salva seus dados online e recupera sozinho — mesmo que o iPhone limpe o app. Também sincroniza entre aparelhos.</div>`;
-  h+=`<input id="cl_url" class="clin" placeholder="Project URL (https://xxxxx.supabase.co)" value="${(cc.url||'').replace(/"/g,'&quot;')}">`;
-  h+=`<input id="cl_key" class="clin" placeholder="anon public key" value="${(cc.key||'').replace(/"/g,'&quot;')}">`;
-  h+=`<input id="cl_code" class="clin" placeholder="Código de sincronização (o mesmo em todos os aparelhos)" value="${(cc.code||'').replace(/"/g,'&quot;')}">`;
-  h+=`<div style="display:flex;gap:8px"><button class="setbtn" style="margin:0;flex:1" onclick="cloudGenCode()">Gerar código</button><button class="setbtn" style="margin:0;flex:1${cc.on?';background:rgba(21,160,90,.15);border-color:var(--ok)':''}" onclick="cloudSave()">${cc.on?'Sincronizando ✓':'Ativar sincronização'}</button></div>`;
+  h+=`<div class="od" style="margin:0 2px 10px">Ligada automaticamente. Seus dados ficam salvos online e voltam sozinhos se o app for limpo. Cada pessoa tem seu próprio código — ninguém vê os dados do outro.</div>`;
+  h+=`<div class="od" style="margin:0 2px 4px"><b>Seu código</b> (guarde para usar nos seus outros aparelhos):</div>`;
+  h+=`<input id="cl_code" class="clin" value="${(cc.code||'').replace(/"/g,'&quot;')}">`;
+  h+=`<div style="display:flex;gap:8px"><button class="setbtn" style="margin:0;flex:1" onclick="cloudCopyCode()">Copiar código</button><button class="setbtn" style="margin:0;flex:1" onclick="cloudApplyCode()">Usar este código</button></div>`;
   h+=`<div style="display:flex;gap:8px;margin-top:8px"><button class="setbtn" style="margin:0;flex:1" onclick="cloudDoPush()">↑ Enviar agora</button><button class="setbtn" style="margin:0;flex:1" onclick="cloudDoPull()">↓ Baixar agora</button></div>`;
-  h+=`<div class="od" id="cl_status" style="margin:8px 2px 14px">${cc.on?'Sincronização ativa neste aparelho.':'Preencha URL, chave e código; toque em Ativar.'}</div>`;
+  h+=`<div class="od" id="cl_status" style="margin:8px 2px 14px">Sincronização ativa.</div>`;
   h+=`<button class="ovclose" onclick="closeSettings()">Fechar</button>`;
   document.getElementById('ovcard2').innerHTML=h;
   document.getElementById('ov2').classList.add('show');
@@ -956,12 +955,14 @@ function clearAll(){
   closeSettings(); render(); touch(); alert('Tudo limpo. App no padrão.');
 }
 
-/* ================= SINCRONIZAÇÃO NA NUVEM (Supabase) ================= */
-const CKEY='titan_cloud_v1', TSKEY='titan_ts';
+/* ================= SINCRONIZAÇÃO NA NUVEM (Netlify Functions + Blobs) ================= */
+const CKEY='titan_cloud_v1', TSKEY='titan_ts', CLOUD_URL='/.netlify/functions/sync';
 function cloudCfg(){ try{return JSON.parse(localStorage.getItem(CKEY))||{};}catch(e){return{};} }
 function cloudSet(c){ try{localStorage.setItem(CKEY,JSON.stringify(c));}catch(e){} }
 function localTs(){ return +(localStorage.getItem(TSKEY)||0); }
 function setLocalTs(t){ try{localStorage.setItem(TSKEY,String(t));}catch(e){} }
+function _genCode(){ var s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',x=''; for(var i=0;i<16;i++)x+=s.charAt(Math.floor(Math.random()*s.length)); return x; }
+function ensureCode(){ var c=cloudCfg(); if(!c.code){ c.code=_genCode(); } c.on=true; cloudSet(c); return c.code; }
 function touch(){ setLocalTs(Date.now()); cloudAutoPush(); }
 function _prog(){ try{return JSON.parse(localStorage.getItem(PROGKEY));}catch(e){return null;} }
 function snapshot(){ return {log:log,picks:picks,program:_prog(),theme:loadTheme(),_ts:localTs()||Date.now()}; }
@@ -976,39 +977,29 @@ function applySnapshot(p){
   if(DAYS.indexOf(state.day)<0)state.day=DAYS[0];
   buildTabs();
 }
-function _cloudHeaders(c){ return {'apikey':c.key,'Authorization':'Bearer '+c.key,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'}; }
 function cloudPush(){
-  var c=cloudCfg(); if(!c.url||!c.key||!c.code) return Promise.reject(new Error('config'));
-  var body=[{code:c.code,payload:snapshot(),updated_at:new Date().toISOString()}];
-  return fetch(c.url.replace(/\/+$/,'')+'/rest/v1/titan_sync',{method:'POST',headers:_cloudHeaders(c),body:JSON.stringify(body)}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return true; });
+  var c=cloudCfg(); if(!c.code) return Promise.reject(new Error('sem código'));
+  return fetch(CLOUD_URL+'?code='+encodeURIComponent(c.code),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot())}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return true; });
 }
 function cloudPull(){
-  var c=cloudCfg(); if(!c.url||!c.key||!c.code) return Promise.reject(new Error('config'));
-  return fetch(c.url.replace(/\/+$/,'')+'/rest/v1/titan_sync?code=eq.'+encodeURIComponent(c.code)+'&select=payload',{headers:_cloudHeaders(c)}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(rows){ return (rows&&rows[0])?rows[0].payload:null; });
+  var c=cloudCfg(); if(!c.code) return Promise.reject(new Error('sem código'));
+  return fetch(CLOUD_URL+'?code='+encodeURIComponent(c.code)).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(p){ return p||null; });
 }
 var _cloudTimer=null;
-function cloudAutoPush(){ var c=cloudCfg(); if(!c.on||!c.url||!c.key||!c.code) return; clearTimeout(_cloudTimer); _cloudTimer=setTimeout(function(){ cloudPush().catch(function(){}); },1500); }
+function cloudAutoPush(){ var c=cloudCfg(); if(!c.on||!c.code) return; clearTimeout(_cloudTimer); _cloudTimer=setTimeout(function(){ cloudPush().catch(function(){}); },1500); }
 function cloudSyncOnOpen(){
-  var c=cloudCfg(); if(!c.on) return;
+  var c=cloudCfg(); if(!c.on||!c.code) return;
   cloudPull().then(function(p){
     if(p && (p._ts||0)>localTs()){ applySnapshot(p); render(); }
     else { cloudPush().catch(function(){}); }
   }).catch(function(){});
 }
-function cloudReadInputs(){ var g=function(id){var e=document.getElementById(id);return e?String(e.value).trim():'';}; var c=cloudCfg(); c.url=g('cl_url'); c.key=g('cl_key'); c.code=g('cl_code'); cloudSet(c); return c; }
-function cloudGenCode(){ var s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',x=''; for(var i=0;i<20;i++)x+=s.charAt(Math.floor(Math.random()*s.length)); var e=document.getElementById('cl_code'); if(e)e.value=x; }
 function _clStat(m){ var e=document.getElementById('cl_status'); if(e)e.textContent=m; }
-function cloudSave(){
-  var c=cloudReadInputs();
-  if(!c.url||!c.key||!c.code){ _clStat('Preencha URL, chave e código.'); return; }
-  c.on=true; cloudSet(c); _clStat('Conectando…');
-  cloudPull().then(function(p){
-    if(p && (p._ts||0)>localTs()){ applySnapshot(p); render(); openSettings(); _clStat('Sincronizado — dados da nuvem baixados. ✓'); }
-    else { if(!localTs())setLocalTs(Date.now()); return cloudPush().then(function(){ openSettings(); _clStat('Sincronizado — seus dados enviados. ✓'); }); }
-  }).catch(function(e){ _clStat('Erro ao conectar. Confira URL/chave e a tabela no Supabase. ('+e.message+')'); });
-}
-function cloudDoPush(){ var c=cloudReadInputs(); if(!c.url||!c.key||!c.code){_clStat('Preencha URL, chave e código.');return;} if(!localTs())setLocalTs(Date.now()); _clStat('Enviando…'); cloudPush().then(function(){_clStat('Enviado para a nuvem. ✓');}).catch(function(e){_clStat('Erro: '+e.message);}); }
-function cloudDoPull(){ var c=cloudReadInputs(); if(!c.url||!c.key||!c.code){_clStat('Preencha URL, chave e código.');return;} _clStat('Baixando…'); cloudPull().then(function(p){ if(p){applySnapshot(p);render();openSettings();_clStat('Baixado da nuvem. ✓');} else _clStat('Nada na nuvem ainda para este código.'); }).catch(function(e){_clStat('Erro: '+e.message);}); }
+function cloudCopyCode(){ var e=document.getElementById('cl_code'); if(!e)return; try{ e.focus(); e.select&&e.select(); if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(e.value); _clStat('Código copiado.'); } else { document.execCommand&&document.execCommand('copy'); _clStat('Código copiado.'); } }catch(_){ _clStat('Selecione o código e copie manualmente.'); } }
+function cloudApplyCode(){ var e=document.getElementById('cl_code'); var v=e?String(e.value).trim():''; if(v.length<6){ _clStat('Código muito curto.'); return; } var c=cloudCfg(); c.code=v; c.on=true; cloudSet(c); _clStat('Buscando dados deste código…');
+  cloudPull().then(function(p){ if(p){ applySnapshot(p); render(); openSettings(); _clStat('Dados deste código carregados. ✓'); } else { setLocalTs(Date.now()); return cloudPush().then(function(){ openSettings(); _clStat('Código pronto — seus dados serão salvos nele.'); }); } }).catch(function(err){ _clStat('Erro: '+err.message); }); }
+function cloudDoPush(){ setLocalTs(Date.now()); _clStat('Enviando…'); cloudPush().then(function(){ _clStat('Enviado para a nuvem. ✓'); }).catch(function(e){ _clStat('Erro: '+e.message+' (publique a função no Netlify)'); }); }
+function cloudDoPull(){ _clStat('Baixando…'); cloudPull().then(function(p){ if(p){ applySnapshot(p); render(); openSettings(); _clStat('Baixado da nuvem. ✓'); } else _clStat('Nada salvo ainda para este código.'); }).catch(function(e){ _clStat('Erro: '+e.message); }); }
 
 function importBackup(file){
   const r=new FileReader();
@@ -1053,6 +1044,7 @@ function buildPrint(){
 function printPlan(){ buildPrint(); setTimeout(()=>window.print(),60); }
 
 render();
+ensureCode();
 cloudSyncOnOpen();
 </script>
 </body>
