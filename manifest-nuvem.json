@@ -1,0 +1,16 @@
+{
+  "name": "Meu Orçamento 2026 · Nuvem",
+  "short_name": "Orçamento Nuvem",
+  "description": "Controle de receitas e despesas mensais, salvo somente na nuvem",
+  "start_url": "./index-nuvem.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%230f172a'/%3E%3Ctext x='96' y='128' font-size='96' text-anchor='middle' fill='%234f8cff' font-family='sans-serif'%3E%E2%98%81%3C/text%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}

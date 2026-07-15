@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0f172a">
-<title>Meu Orçamento 2026</title>
-<link rel="manifest" href="manifest.json">
+<title>Meu Orçamento 2026 · Nuvem</title>
+<link rel="manifest" href="manifest-nuvem.json">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root{
@@ -169,9 +169,45 @@
   .savedtoast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .muted{color:var(--mut)}
   .center{text-align:center}
+
+  /* tela de login / cloud-only */
+  .lockwrap{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+  .lockcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:30px 26px;max-width:380px;width:100%;box-shadow:var(--shadow);text-align:center}
+  .lockicon{font-size:38px;margin-bottom:6px;line-height:1}
+  .lockcard h2{font-size:18px;margin-bottom:8px;font-weight:800}
+  .lockcard .note{margin-top:0}
+  .lockcard input.txt{width:100%;margin-top:16px;text-align:center;background:var(--bg2);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:12px;font-size:14px;font-weight:600}
+  .lockcard input.txt:focus{outline:none;border-color:var(--acc)}
+  .lockremember{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--mut);margin-top:14px;justify-content:center;cursor:pointer;user-select:none}
+  .lockremember input{width:15px;height:15px;accent-color:var(--acc)}
+  .lockcard .btn{width:100%;margin-top:14px;padding:13px}
+  .lockstatus{min-height:18px}
+  .lockstatus.err{color:var(--neg)}
+  .lockstatus.ok{color:var(--pos)}
+  .lockswitch{margin-top:16px;font-size:12.5px}
+  .lockswitch a{cursor:pointer}
+
+  /* aviso fixo de sincronização */
+  .cloudbanner{position:fixed;top:0;left:0;right:0;background:var(--neg);color:#2a0a10;font-weight:700;font-size:12.5px;text-align:center;padding:9px 14px;z-index:90;transform:translateY(-100%);transition:transform .25s ease;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+  .cloudbanner.show{transform:translateY(0)}
 </style>
 </head>
 <body>
+
+<div class="lockwrap" id="lockScreen">
+  <div class="lockcard">
+    <div class="lockicon">☁️</div>
+    <h2>Meu Orçamento — Nuvem</h2>
+    <div class="note">Esta versão guarda seus dados <b>somente na nuvem</b> (Netlify Blobs) — nada fica salvo neste navegador. Informe o código de sincronização para entrar.</div>
+    <input class="txt" id="lockCodeInput" placeholder="código secreto (mín. 6 caracteres)" autocomplete="off">
+    <label class="lockremember"><input type="checkbox" id="lockRemember" checked> lembrar este código neste aparelho</label>
+    <button class="btn" id="lockConnect">Entrar</button>
+    <div class="note lockstatus" id="lockStatus"></div>
+  </div>
+</div>
+
+<div id="appRoot" style="display:none">
+<div class="cloudbanner" id="cloudBanner">⚠ Sem conexão com a nuvem — as últimas alterações ainda não foram salvas</div>
 
 <header class="top">
   <div>
@@ -285,18 +321,12 @@
   <section class="view" id="v-config">
     <div class="card">
       <h3>Sincronização na nuvem</h3>
-      <div class="note" style="margin-top:-4px">Escolha um <b>código secreto</b> (mín. 6 caracteres) e use o mesmo em todos os aparelhos. Seus dados ficam salvos na nuvem e não se perdem. Trate o código como uma senha — quem o souber acessa seus dados.</div>
-      <div id="syncOff">
-        <div class="li" style="border-radius:12px;border:1px solid var(--line);margin-top:10px">
-          <div class="name"><div class="n">Código de sincronização</div><div class="c">mínimo 6 caracteres</div></div>
-          <input class="txt" id="cloudCodeInput" style="max-width:170px" placeholder="ex: orcamento-2026-x7k">
-        </div>
-        <div class="btnrow"><button class="btn" id="btnConnect">Ativar sincronização</button></div>
-      </div>
-      <div id="syncOn" style="display:none">
+      <div class="note" style="margin-top:-4px">Nesta versão, seus dados vivem <b>somente na nuvem</b> (Netlify Blobs) — nada é gravado neste navegador. O código abaixo é a sua "senha" de acesso: use o mesmo em todos os aparelhos.</div>
+      <div id="syncOff" style="display:none"></div>
+      <div id="syncOn">
         <div class="li" style="border-radius:12px;border:1px solid var(--line);margin-top:10px">
           <div class="name"><div class="n">Conectado</div><div class="c" id="cloudCodeShown">—</div></div>
-          <button class="btn ghost" id="btnDisconnect" style="padding:8px 12px">Desligar</button>
+          <button class="btn ghost" id="btnDisconnect" style="padding:8px 12px">Sair</button>
         </div>
         <div class="btnrow">
           <button class="btn" id="btnPush">↑ Enviar agora</button>
@@ -307,7 +337,7 @@
     </div>
     <div class="card">
       <h3>Seus dados</h3>
-      <div class="note" style="margin-top:-4px">Tudo fica salvo <b>neste navegador</b>. Faça um backup para não perder e para usar em outro aparelho.</div>
+      <div class="note" style="margin-top:-4px">Nada fica salvo neste navegador — tudo é enviado para a nuvem a cada alteração. Ainda assim, recomendamos um backup local de vez em quando por segurança.</div>
       <div class="btnrow">
         <button class="btn" id="btnExport">⬇ Exportar backup (.json)</button>
         <button class="btn ghost" id="btnImport">⬆ Importar backup</button>
@@ -335,8 +365,8 @@
     <div class="card" style="margin-top:14px">
       <h3>Como usar em qualquer lugar</h3>
       <div class="note">1. No celular, abra este endereço e toque em <b>Compartilhar → Adicionar à Tela de Início</b>: vira um app.<br>
-      2. Para acessar de vários aparelhos, publique a pasta em um serviço grátis (Netlify, Vercel ou GitHub Pages) — veja o arquivo <b>COMO-HOSPEDAR.md</b>.<br>
-      3. Para sincronizar entre aparelhos, use <b>Exportar/Importar backup</b>.</div>
+      2. Este app precisa estar hospedado no <b>Netlify</b> (para a função de sincronização funcionar) — veja o arquivo <b>COMO-HOSPEDAR.md</b>.<br>
+      3. Em qualquer aparelho, basta entrar com o <b>mesmo código</b> na tela de login — os dados vêm direto da nuvem, sem precisar de backup manual.</div>
     </div>
   </section>
 
@@ -344,6 +374,7 @@
 
 <nav class="bottom" id="tabsBottom"></nav>
 <div class="savedtoast" id="toast">salvo ✓</div>
+</div><!-- /appRoot -->
 
 <script>
 /* ============ DADOS INICIAIS (planilha Orçamento 2026) ============ */
@@ -411,52 +442,92 @@ const SEED={
   ]
 };
 
-/* ============ ESTADO ============ */
-const KEY="orcamento2026_v1";
-let S=load();
+/* ============ ESTADO (cloud-only — nada é salvo no navegador) ============ */
+let S=null;
 let curMonth=Math.min(new Date().getMonth(),11);
 
 /* ============ SINCRONIZAÇÃO NA NUVEM (Netlify Blobs) ============ */
 // Endpoint relativo: funciona quando o app é servido pelo Netlify (mesma origem).
 // Para usar de outra hospedagem, troque por: "https://SEU-SITE.netlify.app/.netlify/functions/sync"
 const SYNC_ENDPOINT="/.netlify/functions/sync";
-const CODEKEY="orcamento_cloudcode";
+const CODEKEY="orcamento_cloudcode"; // guarda só o código (senha), nunca os dados financeiros
 let cloudCode=localStorage.getItem(CODEKEY)||"";
-let pushT=null, syncing=false, lastSync=localStorage.getItem("orcamento_lastsync")||"";
-function schedulePush(){if(!cloudCode)return;clearTimeout(pushT);pushT=setTimeout(pushCloud,1200);}
+let pushT=null, syncing=false, lastSync="", pendingRetry=null;
+function schedulePush(){if(!cloudCode)return;clearTimeout(pushT);pushT=setTimeout(pushCloud,900);}
 function syncStatus(txt,cls){const el=document.getElementById('syncStatus');if(el){el.textContent=txt;el.className='note '+(cls||'');}}
+function setBanner(show){const b=document.getElementById('cloudBanner');if(b)b.classList.toggle('show',!!show);}
 async function pushCloud(){
-  if(!cloudCode)return;
-  try{syncing=true;syncStatus('Enviando para a nuvem…');
+  if(!cloudCode||!S)return;
+  try{
+    syncing=true;syncStatus('Enviando para a nuvem…');
     const r=await fetch(SYNC_ENDPOINT+'?code='+encodeURIComponent(cloudCode),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(S)});
     if(!r.ok)throw new Error('HTTP '+r.status);
-    lastSync=new Date().toLocaleString('pt-BR');localStorage.setItem('orcamento_lastsync',lastSync);
+    lastSync=new Date().toLocaleString('pt-BR');
     syncStatus('Sincronizado ✓ • '+lastSync,'pos');
-  }catch(e){syncStatus('Falha ao enviar (offline?). Tentará de novo ao editar.','neg');}
-  finally{syncing=false;}
+    setBanner(false);clearTimeout(pendingRetry);
+  }catch(e){
+    syncStatus('Falha ao enviar (sem conexão?). Tentando de novo…','neg');
+    setBanner(true);
+    clearTimeout(pendingRetry);pendingRetry=setTimeout(pushCloud,8000); // continua tentando até salvar
+  }finally{syncing=false;}
 }
 async function pullCloud(silent){
   if(!cloudCode)return null;
-  try{syncStatus('Baixando da nuvem…');
+  try{if(!silent)syncStatus('Baixando da nuvem…');
     const r=await fetch(SYNC_ENDPOINT+'?code='+encodeURIComponent(cloudCode));
     if(!r.ok)throw new Error('HTTP '+r.status);
     const data=await r.json();
-    if(data){const m=migrate(data)||data; if(m&&m.years){S=m;persist();initAll();}}
-    lastSync=new Date().toLocaleString('pt-BR');localStorage.setItem('orcamento_lastsync',lastSync);
+    if(data){const m=migrate(data)||data; if(m&&m.years){S=m;initAll();}}
+    lastSync=new Date().toLocaleString('pt-BR');
     syncStatus(data?('Baixado da nuvem ✓ • '+lastSync):'Nuvem vazia — seus dados serão enviados.','pos');
+    setBanner(false);
     return data;
-  }catch(e){syncStatus('Falha ao baixar (offline ou código novo).','neg');return null;}
+  }catch(e){syncStatus('Falha ao baixar (offline?).','neg');setBanner(true);return null;}
 }
-async function connectCloud(code){
-  code=(code||'').trim();
-  if(code.length<6){alert('O código precisa ter pelo menos 6 caracteres.');return;}
-  cloudCode=code;localStorage.setItem(CODEKEY,code);
-  const data=await pullCloud();
-  if(data){ if(!confirm('A nuvem já tem dados salvos com este código e eles foram carregados. OK para manter os dados da nuvem. (Cancelar mantém o que estava neste aparelho e envia para a nuvem.)')){ await pushCloud(); } }
-  else{ await pushCloud(); }
-  renderConfig();
+function disconnectCloud(){
+  if(!confirm('Sair? Você precisará digitar o código novamente para acessar seus dados neste aparelho.'))return;
+  cloudCode="";localStorage.removeItem(CODEKEY);S=null;clearTimeout(pushT);clearTimeout(pendingRetry);
+  document.getElementById('appRoot').style.display='none';
+  document.getElementById('lockScreen').style.display='flex';
+  document.getElementById('lockCodeInput').value='';
+  document.getElementById('lockRemember').checked=true;
+  setLockStatus('');
 }
-function disconnectCloud(){cloudCode="";localStorage.removeItem(CODEKEY);syncStatus('Sincronização desligada.');renderConfig();}
+
+/* ============ LOGIN (tela de bloqueio) ============ */
+function setLockStatus(txt,cls){const el=document.getElementById('lockStatus');el.textContent=txt||'';el.className='note lockstatus '+(cls||'');}
+async function lockConnectHandler(){
+  const code=(document.getElementById('lockCodeInput').value||'').trim();
+  const remember=document.getElementById('lockRemember').checked;
+  if(code.length<6){setLockStatus('O código precisa ter pelo menos 6 caracteres.','err');return;}
+  document.getElementById('lockConnect').disabled=true;
+  setLockStatus('Conectando à nuvem…');
+  cloudCode=code;
+  if(remember)localStorage.setItem(CODEKEY,code);else localStorage.removeItem(CODEKEY);
+  try{
+    const r=await fetch(SYNC_ENDPOINT+'?code='+encodeURIComponent(code));
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    let isNew=false;
+    if(data){const m=migrate(data)||data; S=(m&&m.years)?m:freshState();}
+    else{S=freshState();isNew=true;}
+    lastSync=new Date().toLocaleString('pt-BR');
+    startApp();
+    if(isNew)pushCloud(); // primeiro acesso com este código: envia os dados iniciais
+  }catch(e){
+    setLockStatus('Não foi possível conectar. Verifique sua internet e tente de novo.','err');
+  }finally{
+    document.getElementById('lockConnect').disabled=false;
+  }
+}
+function startApp(){
+  document.getElementById('lockScreen').style.display='none';
+  document.getElementById('appRoot').style.display='block';
+  normalizeCons();
+  buildNav();initAll();go('painel');setTimeout(positionHighlight,80);
+}
+document.getElementById('lockConnect').onclick=lockConnectHandler;
+document.getElementById('lockCodeInput').addEventListener('keydown',e=>{if(e.key==='Enter')lockConnectHandler();});
 
 function deepCopy(o){return JSON.parse(JSON.stringify(o));}
 const round2=x=>Math.round((+x||0)*100)/100;
@@ -482,18 +553,14 @@ function migrate(d){
   }
   return null;
 }
-function load(){
-  try{const raw=localStorage.getItem(KEY);if(raw){const d=migrate(JSON.parse(raw));if(d&&d.years)return d;}}catch(e){}
-  return freshState();
-}
 // atalho para o ano ativo
 function Y(){return S.years[S.activeYear];}
 function yearsList(){return Object.keys(S.years).map(Number).sort((a,b)=>a-b);}
 // saldo projetado no fim de um ano
 function yearEndBalance(year){const yd=S.years[year];if(!yd)return 0;let acc=+yd.saldoInicial||0;
   for(let m=0;m<12;m++){acc+=sumList(yd.receitas,m)-sumList(yd.fixas,m)-sumList(yd.cartoes,m);}return acc;}
-function persist(){localStorage.setItem(KEY,JSON.stringify(S));}
-function save(){persist();toast();schedulePush();}
+// nesta versão não existe cópia local: save() só agenda o envio para a nuvem
+function save(){toast();schedulePush();}
 let toastT;
 function toast(){const t=document.getElementById('toast');t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),1100);}
 const BRL=n=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:2});
@@ -815,7 +882,6 @@ function renderConfig(){
   if(on){document.getElementById('cloudCodeShown').textContent='código: '+cloudCode;
     if(lastSync&&!document.getElementById('syncStatus').textContent)syncStatus('Última sincronização • '+lastSync,'pos');}
 }
-document.getElementById('btnConnect').onclick=()=>connectCloud(document.getElementById('cloudCodeInput').value);
 document.getElementById('btnDisconnect').onclick=disconnectCloud;
 document.getElementById('btnPush').onclick=pushCloud;
 document.getElementById('btnPull').onclick=()=>pullCloud();
@@ -880,9 +946,12 @@ function initAll(){
   document.getElementById('cfgYear').textContent=S.activeYear;
   renderPainel();renderLancar();renderRec();renderCons();renderMetas();renderConfig();
 }
-buildNav();initAll();go('painel');setTimeout(positionHighlight,80);
-// se já sincroniza, busca a versão mais recente da nuvem ao abrir
-if(cloudCode)pullCloud(true);
+/* ============ AUTO-LOGIN (se o código já estiver lembrado neste aparelho) ============ */
+if(cloudCode){
+  document.getElementById('lockCodeInput').value=cloudCode;
+  document.getElementById('lockRemember').checked=true;
+  lockConnectHandler();
+}
 </script>
 </body>
 </html>
